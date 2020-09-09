@@ -2,8 +2,10 @@ const express = require('express')
 require('dotenv').config()
 const morgan = require('morgan') 
 const cors = require('cors')
+const uniqueValidator = require('mongoose-unique-validator')
 const app = express()
 const Person = require('./models/person')
+
 
 app.use(express.json())
 app.use(express.static('build'))
@@ -41,25 +43,17 @@ const generateId = () => {
 
 app.post('/api/persons', (request, response, next) => {
   const body = request.body
-  if (!body.name||!body.number) {
-    response.status(400).send({ error: 'Name or number missing' })
-  }else{
-    Person.exists({ name: body.name}).then( exists =>{
-      if (exists) {
-        response.status(409).send({ error: 'Person is alreaydy in database' })
-      }else{
-        const person = new Person ({
-          name: body.name,
-          number: body.number,
-          id: generateId(),
-        })
-        person.save().then(savedPerson =>{
-          response.json(savedPerson)
-        })
-      }
+  const person = new Person ({
+    name: body.name,
+    number: body.number,
+    id: generateId(),
+  })
+  person
+    .save()
+    .then(savedPerson =>{
+      response.json(savedPerson)
     })
-    .catch(error => next(error))
-  }
+  .catch(error => next(error))
 })
 
 app.get('/api/persons/:id', (request, response, next) => {
@@ -99,10 +93,10 @@ const errorHandler = (error, request, response, next) => {
   console.error(error.message)
   if (error.name ==='Conflict'){
     return response.status(409).send({ error: 'Person is alreaydy in database' })
-  }
-
-  if (error.name === 'CastError') {
+  } else if (error.name === 'CastError') {
     return response.status(400).send({ error: 'malformatted id' })
+  } else if (error.name ==='ValidationError') {
+    return response.status(400).json({error: error.message})
   }
 
   next(error)
